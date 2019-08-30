@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>Neural network</title>
+	<script src="https://unpkg.com/brain.js@2.0.0-alpha.5/dist/brain-browser.min.js"></script>
+	<style>
+		body {
+			background-color: #333;
+		}
+
+		#canv {
+			position: absolute;
+			top: 0;right: 0;bottom: 0;left: 0;
+			margin: auto;
+			background-color: white;
+		}
+	</style>
+</head>
+<body>
+	
+	<canvas id="canv" style="display: block;">hujowy browser</canvas>
+	<script>
+		class DCanvas {
+			ctx;
+			pixel = 20;
+			isMouseDown = false;
+
+			constructor(el) {
+				this.init(el);
+			}
+	
+			init(el) {
+				this.ctx = el.getContext('2d');
+				canv.width = 500;
+				canv.height = 500;
+				this.events(el);
+			}
+	
+			events(el) {
+				el.addEventListener('mousedown', (e) => {
+					this.isMouseDown = true;
+					this.ctx.beginPath();
+				})
+
+				el.addEventListener('mouseup', (e) => {
+					this.isMouseDown = false;
+				})
+
+				el.addEventListener('mousemove', (e) => {
+					if( this.isMouseDown ){
+						this.ctx.fillStyle = 'red';
+						this.ctx.strokeStyle = 'red';
+						this.ctx.lineWidth = this.pixel;
+
+						this.ctx.lineTo(e.offsetX, e.offsetY);
+						this.ctx.stroke();
+
+						this.ctx.beginPath();
+						this.ctx.arc(e.offsetX, e.offsetY, this.pixel / 2, 0, Math.PI * 2);
+						this.ctx.fill();
+
+						this.ctx.beginPath();
+						this.ctx.moveTo(e.offsetX, e.offsetY);
+					}
+				})
+			}
+	
+			drawLine(x1, y1, x2, y2, color = 'gray') {
+				this.ctx.beginPath();
+				this.ctx.strokeStyle = color;
+				this.ctx.lineJoin = 'miter';
+				this.ctx.lineWidth = 1;
+				this.ctx.moveTo(x1, y1);
+				this.ctx.lineTo(x2, y2);
+				this.ctx.stroke();
+			}
+	
+			drawGrid() {
+				const w = canv.width;
+				const h = canv.height;
+				const p = w / this.pixel;
+
+				const xStep = w / p;
+				const yStep = h / p;
+
+				for( let x = 0; x < w; x += xStep ){
+					this.drawLine(x, 0, x, h);
+				}
+
+				for( let y = 0; y < h; y += yStep ){
+					this.drawLine(0, y, w, y);
+				}
+			}
+	
+			drawCell(x, y, w, h) {
+				this.ctx.fillStyle = 'blue';
+				this.ctx.strokeStyle = 'blue';
+				this.ctx.lineJoin = 'miter';
+				this.ctx.lineWidth = 1;
+				this.ctx.rect(x, y, w, h);
+				this.ctx.fill();
+			}
+	
+			calculate(draw = false) {
+				const w = canv.width;
+				const h = canv.height;
+				const p = w / this.pixel;
+
+				const xStep = w / p;
+				const yStep = h / p;
+
+				const vector = [];
+				let __draw = [];
+
+				for( let x = 0; x < w; x += xStep ){
+					for( let y = 0; y < h; y += yStep ){
+						const data = this.ctx.getImageData(x, y, xStep, yStep);
+
+						let nonEmptyPixelsCount = 0;
+						for( let i = 0; i < data.data.length; i += 10 ){
+							const isEmpty = data.data[i] === 0;
+
+							if( !isEmpty ){
+								nonEmptyPixelsCount += 1;
+							}
+						}
+
+						if( nonEmptyPixelsCount > 1 && draw ){
+							__draw.push([x, y, xStep, yStep]);
+						}
+
+						vector.push(nonEmptyPixelsCount > 1 ? 1 : 0);
+					}
+				}
+
+				if( draw ){
+					this.clear();
+					this.drawGrid();
+
+					for( let _d in __draw ){
+						this.drawCell( __draw[_d][0], __draw[_d][1], __draw[_d][2], __draw[_d][3] );
+					}
+				}
+
+				return vector;
+			}
+	
+			clear() {
+				this.ctx.clearRect(0, 0, canv.width, canv.height);
+			}
+		}
+
+		let vector = [],
+		    net = null,
+		    train_data = [];
+			
+			const d = new DCanvas(document.getElementById('canv'));
+			
+			document.addEventListener('keypress', (e) => {
+				if (e.key.toLowerCase() == 'c') {
+					d.clear();
+				}
+				
+				if (e.key.toLowerCase() == 'v') {
+					vector = d.calculate(true);
+				
+					if (confirm('Positive?')) {
+						train_data.push({
+							input: vector,
+							output: {positive: 1}
+						})
+					} else {
+						train_data.push({
+							input: vector,
+							output: {negative: 1}
+						})
+					}
+				}
+				
+				if (e.key.toLowerCase() == 'b') {
+					net = new brain.NeuralNetwork
+					net.train(train_data, {log: true});
+					
+					const res = brain.likely(d.calculate(), net);
+					
+					alert(res)
+				}
+			});
+	</script>
+
+</body>
+</html>
